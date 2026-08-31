@@ -1,6 +1,6 @@
 [package]
 name = "calcit-caps"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 edition = "2024"
 authors = ["Calcit contributors"]
 description = "Package manager and immutable module store for Calcit projects"
@@ -31,4 +31,3 @@ serde_json = "1.0.151"
 lto = true
 codegen-units = 1
 strip = "debuginfo"
-
