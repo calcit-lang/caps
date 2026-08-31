@@ -59,6 +59,7 @@ accepts an explicit manifest path as the positional input.
 
 | caps release | `deps.cirru :calcit-version` | `@calcit/procs` | Native modules | Support status / 支持状态 |
 | --- | --- | --- | --- | --- |
+| `0.1.0` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Stable; promoted from the cross-project-verified rc.2 implementation / 稳定版；由已通过跨项目验证的 rc.2 同一实现提升 |
 | `0.1.0-rc.2` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published candidate; Calcium Workflow and Respo install/tree/status/verify smoke passed / 候选已发布，真实项目 smoke 已通过 |
 
 `caps` can parse other exact Calcit SemVer declarations, but they are not a supported
@@ -68,7 +69,8 @@ toolchain.
 
 Migration and core cutover are tracked by
 [calcit#546](https://github.com/calcit-lang/calcit/issues/546) and
-[calcit#554](https://github.com/calcit-lang/calcit/issues/554). Shared ABI consumer
+[calcit#554](https://github.com/calcit-lang/calcit/issues/554), with core cutover in
+[calcit#555](https://github.com/calcit-lang/calcit/issues/555). Shared ABI consumer
 tracking is in
 [calcit-native-ffi#9](https://github.com/calcit-lang/calcit-native-ffi/issues/9).
 
@@ -79,10 +81,11 @@ tracking is in
 其他 Calcit SemVer 虽可被解析，但只有经过跨项目 smoke 并加入上表后才构成正式支持
 组合。候选发布与 core cutover 由上述 Issues 追踪。
 
-Candidate evidence / 候选验证：从 crates.io 安装 `calcit-caps 0.1.0-rc.2` 后，
+Release evidence / 发布验证：从 crates.io 安装 `calcit-caps 0.1.0-rc.2` 后，
 Calcium Workflow 在 fresh store 上通过 `caps --ci`、`tree`、`status`、
 `verify --toolchain` 与 Calcit check，其中 `calcit-wss` 和 `calcit.std` 的 native
-realization/receipt 均通过；Respo 通过同组 caps smoke 与 27/27 tests。
+realization/receipt 均通过；Respo 通过同组 caps smoke 与 27/27 tests。`0.1.0`
+由这份已验证实现直接提升，发布后再抽样安装确认 binary 与 crates.io 可恢复。
 
 ## Development / 开发
 
