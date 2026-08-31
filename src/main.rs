@@ -345,9 +345,9 @@ pub fn main() -> Result<(), String> {
 }
 
 fn download_deps(deps: PackageDeps, options: TopLevelCaps) -> Result<(), String> {
-    let graph = resolve_for_cli(&deps, &options, !options.ci)?;
+    let graph_options = install_graph_options(&deps, &options)?;
+    let graph = resolve_graph(&deps, &graph_options)?;
     print_warnings(&graph);
-    let graph_options = graph_options(&deps, &options, !options.ci)?;
     install_project_view(&graph, &graph_options)?;
     println!(
         "installed {} module(s) into {}",
@@ -355,6 +355,15 @@ fn download_deps(deps: PackageDeps, options: TopLevelCaps) -> Result<(), String>
         graph_options.project_root.join(".calcit/modules").display()
     );
     Ok(())
+}
+
+fn install_graph_options(
+    deps: &PackageDeps,
+    options: &TopLevelCaps,
+) -> Result<GraphOptions, String> {
+    // `--ci` selects shallow HTTPS Git transport. Native realization remains part of
+    // installation so the resulting project view is immediately runnable and verifiable.
+    graph_options(deps, options, true)
 }
 
 fn graph_options(
@@ -1308,9 +1317,10 @@ fn print_column(
 #[cfg(test)]
 mod tests {
     use super::{
-        PackageDeps, VersionBumpCaps, VersionCaps, VersionGetCaps, VersionSubcommand,
-        handle_version_command, module_folder, normalize_package_name, parse_calcit_version_output,
-        project_root_from_input, verify_installed_procs_version, verify_procs_manifest_spec,
+        PackageDeps, TopLevelCaps, VersionBumpCaps, VersionCaps, VersionGetCaps, VersionSubcommand,
+        handle_version_command, install_graph_options, module_folder, normalize_package_name,
+        parse_calcit_version_output, project_root_from_input, verify_installed_procs_version,
+        verify_procs_manifest_spec,
     };
     use cirru_edn::Edn;
     use std::collections::HashMap;
@@ -1358,6 +1368,34 @@ mod tests {
         assert_eq!(
             parse_calcit_version_output("calcit development build"),
             None
+        );
+    }
+
+    #[test]
+    fn ci_transport_keeps_native_realization_enabled() {
+        let options = TopLevelCaps {
+            verbose: false,
+            version: false,
+            calcit_version: Some("0.13.72".to_owned()),
+            subcommand: None,
+            pull_branch: false,
+            ci: true,
+            local_debug: false,
+            strict: false,
+            input: "deps.cirru".to_owned(),
+        };
+        let deps = PackageDeps {
+            version: None,
+            calcit_version: Some("0.13.72".to_owned()),
+            dependencies: HashMap::new(),
+            dev_dependencies: HashMap::new(),
+        };
+
+        let graph = install_graph_options(&deps, &options).unwrap();
+        assert!(graph.ci, "CI transport should stay enabled");
+        assert!(
+            graph.build_native,
+            "CI installs must realize native modules"
         );
     }
 
