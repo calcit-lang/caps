@@ -3,6 +3,9 @@
 `caps` is the package manager and immutable module-store manager for Calcit projects.
 It resolves `deps.cirru`, Git/SemVer references and transitive dependencies, then
 materializes verified revisions and installs a project-local `.calcit/modules/` view.
+It is a production tool, not a compiler subcommand or workflow template. Calcit core
+owns language/runtime and module-loading semantics; `calcit-native-ffi` owns native ABI
+constants and raw types.
 
 `caps` is maintained independently from the Calcit compiler. The three versions have
 separate ownership:
@@ -41,6 +44,26 @@ accepts an explicit manifest path as the positional input.
 
 稳定边界、恢复语义与迁移矩阵见 [extraction contract](docs/extraction-contract.md)。
 
+## Compatibility and releases / 兼容与发布
+
+- caps has its own SemVer cadence and does not release in lockstep with Calcit;
+- the project toolchain remains the exact `deps.cirru :calcit-version`;
+- module store/project-view paths and recovery behavior follow the frozen extraction
+  contract;
+- native verification consumes ABI v1 from `calcit_native_ffi 0.1.3` with default
+  features disabled;
+- production releases are created from verified `main` through the crates.io workflow.
+
+Migration and core cutover are tracked by
+[calcit#546](https://github.com/calcit-lang/calcit/issues/546) and
+[calcit#554](https://github.com/calcit-lang/calcit/issues/554). Shared ABI consumer
+tracking is in
+[calcit-native-ffi#9](https://github.com/calcit-lang/calcit-native-ffi/issues/9).
+
+`caps` 独立采用 SemVer，不与 Calcit 锁步发布；项目 toolchain 仍由
+`deps.cirru :calcit-version` 精确声明。store/view 路径、恢复语义和 native ABI v1
+兼容边界遵循 extraction contract。候选发布与 core cutover 由上述 Issues 追踪。
+
 ## Development / 开发
 
 ```bash
@@ -51,4 +74,3 @@ cargo test --all-targets
 
 Issue 与 PR 的标题、正文和阶段性进度保持中英双语。生产功能通过 PR 合并；发布版本
 从已验证的 `main` 打不带 `v` 前缀的 tag。
-
