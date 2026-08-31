@@ -59,7 +59,7 @@ accepts an explicit manifest path as the positional input.
 
 | caps release | `deps.cirru :calcit-version` | `@calcit/procs` | Native modules | Support status / 支持状态 |
 | --- | --- | --- | --- | --- |
-| `0.1.0-rc.2` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Candidate target; publish and Calcium Workflow/Respo smoke pending / 候选目标，等待发布与真实项目 smoke |
+| `0.1.0-rc.2` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published candidate; Calcium Workflow and Respo install/tree/status/verify smoke passed / 候选已发布，真实项目 smoke 已通过 |
 
 `caps` can parse other exact Calcit SemVer declarations, but they are not a supported
 release combination until added to this table after cross-project smoke. The installed
@@ -78,6 +78,11 @@ tracking is in
 `calcit_native_ffi 0.1.3`；生产版本只从验证通过的 `main` 经 crates.io workflow 发布。
 其他 Calcit SemVer 虽可被解析，但只有经过跨项目 smoke 并加入上表后才构成正式支持
 组合。候选发布与 core cutover 由上述 Issues 追踪。
+
+Candidate evidence / 候选验证：从 crates.io 安装 `calcit-caps 0.1.0-rc.2` 后，
+Calcium Workflow 在 fresh store 上通过 `caps --ci`、`tree`、`status`、
+`verify --toolchain` 与 Calcit check，其中 `calcit-wss` 和 `calcit.std` 的 native
+realization/receipt 均通过；Respo 通过同组 caps smoke 与 27/27 tests。
 
 ## Development / 开发
 
