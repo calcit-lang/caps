@@ -1,0 +1,34 @@
+[package]
+name = "calcit-caps"
+version = "0.1.0"
+edition = "2024"
+authors = ["Calcit contributors"]
+description = "Package manager and immutable module store for Calcit projects"
+license = "MIT"
+repository = "https://github.com/calcit-lang/caps"
+readme = "README.md"
+keywords = ["calcit", "package-manager", "cirru"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "caps"
+path = "src/main.rs"
+
+[dependencies]
+argh = "0.1.19"
+calcit_native_ffi = { version = "0.1.3", default-features = false }
+cirru_edn = "0.8.0"
+colored = "3.1.1"
+dirs = "6.0.0"
+fs4 = "1.1.0"
+hex = "0.4.3"
+libloading = "0.9.0"
+md-5 = "0.11.0"
+semver = "1.0.28"
+serde_json = "1.0.151"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "debuginfo"
+
