@@ -59,7 +59,7 @@ accepts an explicit manifest path as the positional input.
 
 | caps release | `deps.cirru :calcit-version` | `@calcit/procs` | Native modules | Support status / 支持状态 |
 | --- | --- | --- | --- | --- |
-| `0.1.0` | exact `0.13.77` | exact `0.13.77` when present | C-safe ABI v1; native realization verified with `calcit-command`, `calcit-graphviz`, and `calcit_wasmtime` | Published stable; strict fresh-runner install and toolchain checks passed across the 0.13.77 catalog wave / 稳定版已发布；0.13.77 目录波次已在全新 runner 通过 strict 安装与工具链检查 |
+| `0.1.0` | exact `0.13.77` | exact `0.13.77` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled; native realization exercised by `calcit-command`, `calcit-graphviz`, and `calcit_wasmtime` | Published stable; strict fresh-runner install and toolchain checks passed across the 0.13.77 catalog wave / 稳定版已发布；0.13.77 目录波次已在全新 runner 通过 strict 安装与工具链检查 |
 | `0.1.0` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published stable; isolated crates.io install and fresh-store Calcium native/toolchain smoke passed / 稳定版已发布；隔离安装与 Calcium native/toolchain smoke 通过 |
 | `0.1.0-rc.2` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published candidate; Calcium Workflow and Respo install/tree/status/verify smoke passed / 候选已发布，真实项目 smoke 已通过 |
 
