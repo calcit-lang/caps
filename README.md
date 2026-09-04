@@ -59,6 +59,7 @@ accepts an explicit manifest path as the positional input.
 
 | caps release | `deps.cirru :calcit-version` | `@calcit/procs` | Native modules | Support status / 支持状态 |
 | --- | --- | --- | --- | --- |
+| `0.1.0` | exact `0.13.77` | exact `0.13.77` when present | C-safe ABI v1; native realization verified with `calcit-command`, `calcit-graphviz`, and `calcit_wasmtime` | Published stable; strict fresh-runner install and toolchain checks passed across the 0.13.77 catalog wave / 稳定版已发布；0.13.77 目录波次已在全新 runner 通过 strict 安装与工具链检查 |
 | `0.1.0` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published stable; isolated crates.io install and fresh-store Calcium native/toolchain smoke passed / 稳定版已发布；隔离安装与 Calcium native/toolchain smoke 通过 |
 | `0.1.0-rc.2` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published candidate; Calcium Workflow and Respo install/tree/status/verify smoke passed / 候选已发布，真实项目 smoke 已通过 |
 
@@ -88,6 +89,24 @@ realization/receipt 均通过；Respo 通过同组 caps smoke 与 27/27 tests。
 由这份已验证实现直接提升，并已从 crates.io 隔离安装；在 fresh HOME/store 的 Calcium
 Workflow 中再次通过 16 modules install/tree/status/verify、`calcit-wss` 与 `calcit.std`
 native realization/receipt、Calcit/`@calcit/procs` 0.13.72 toolchain guard 以及 Calcit check-only。
+
+Calcit 0.13.77 compatibility reuses the same independently versioned caps 0.1.0 release.
+Fresh GitHub runners passed strict module installation, exact toolchain verification and repository
+checks in `calcit-command` run
+[33896903419](https://github.com/calcit-lang/calcit-command/actions/runs/33896903419),
+`calcit-graphviz` run
+[33901202854](https://github.com/calcit-lang/calcit-graphviz/actions/runs/33901202854), and
+`calcit_wasmtime` run
+[33902018824](https://github.com/calcit-lang/calcit_wasmtime/actions/runs/33902018824).
+The native bindings exercise package resolution and ABI realization; the independent
+`combinators` run
+[33913033634](https://github.com/calcit-lang/combinators/actions/runs/33913033634)
+additionally confirms the empty-module graph and exact 0.13.77 toolchain path. These checks extend
+the supported matrix without changing caps SemVer or removing the 0.13.72 compatibility evidence.
+
+Calcit 0.13.77 继续复用独立版本的 caps 0.1.0。上述 GitHub 全新 runner 分别验证了
+strict 模块安装、精确工具链、native ABI realization 与空模块图；因此本次只扩展正式支持矩阵，
+不改变 caps SemVer，也不删除 0.13.72 的兼容证据。
 
 ## Development / 开发
 
