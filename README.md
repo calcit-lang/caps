@@ -58,14 +58,13 @@ accepts an explicit manifest path as the positional input.
 - production releases are created from verified `main`; the release workflow publishes
   both the crate and an Ubuntu Linux x64 binary with a checksum manifest.
 
-The selected initial `setup-calcit` consumer version is `0.1.0`. Its existing GitHub
-Release predates this binary contract, so that consumer must not be enabled until the
-release is backfilled with both `caps` and `caps-release-manifest.json`. If `0.1.0` is
-not backfilled, the next caps release containing both files becomes the selected version
-and `setup-calcit` must update its `caps-version` default to match.
+The selected `setup-calcit` consumer version is `0.1.1`, paired with Calcit `0.14.3`.
+Its GitHub Release must contain both `caps` and `caps-release-manifest.json` before the
+consumer change is enabled.
 
 | caps release | `deps.cirru :calcit-version` | `@calcit/procs` | Native modules | Support status / 支持状态 |
 | --- | --- | --- | --- | --- |
+| `0.1.1` | exact `0.14.3` | exact `0.14.3` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Release target; GitHub binary and manifest plus cross-project setup smoke required / 发版目标；需验证 GitHub 二进制、manifest 与跨项目 setup smoke |
 | `0.1.0` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published stable; isolated crates.io install and fresh-store Calcium native/toolchain smoke passed / 稳定版已发布；隔离安装与 Calcium native/toolchain smoke 通过 |
 | `0.1.0-rc.2` | exact `0.13.72` | exact `0.13.72` when present | C-safe ABI v1, verified with `calcit_native_ffi 0.1.3` and default features disabled | Published candidate; Calcium Workflow and Respo install/tree/status/verify smoke passed / 候选已发布，真实项目 smoke 已通过 |
 
@@ -86,10 +85,8 @@ tracking is in
 兼容边界遵循 extraction contract。native verifier 直接使用关闭默认 features 的
 `calcit_native_ffi 0.1.3`；生产版本只从验证通过的 `main` 发布，同时包含 crate，以及供
 `setup-calcit` 直接下载并校验的 Ubuntu Linux x64 二进制。
-首个选定给 `setup-calcit` 使用的版本是 `0.1.0`。该 GitHub Release 早于此二进制约定，
-因此必须先补传 `caps` 和 `caps-release-manifest.json`，才能启用消费端。如果不补传
-`0.1.0`，则应选择首个同时包含这两个文件的新版本，并同步更新 `setup-calcit` 的
-`caps-version` 默认值。
+选定给 `setup-calcit` 使用的版本是 `0.1.1`，对应 Calcit `0.14.3`。启用消费端改动前，
+其 GitHub Release 必须同时包含 `caps` 和 `caps-release-manifest.json`。
 其他 Calcit SemVer 虽可被解析，但只有经过跨项目 smoke 并加入上表后才构成正式支持
 组合。候选发布与 core cutover 由上述 Issues 追踪。
 
