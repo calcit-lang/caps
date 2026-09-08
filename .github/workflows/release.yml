@@ -77,4 +77,5 @@ jobs:
           gh release upload "$RELEASE_TAG"
           release-assets/caps
           release-assets/caps-release-manifest.json
+          --repo "$GITHUB_REPOSITORY"
           --clobber
