@@ -6,10 +6,9 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +20,61 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --all-targets
       - run: cargo package
+      - name: Build Linux release binary
+        run: cargo build --release --locked
+      - name: Generate release asset manifest
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          PACKAGE_VERSION="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          test "$RELEASE_TAG" = "$PACKAGE_VERSION"
+          CAPS_SHA256="$(sha256sum target/release/caps | cut -d ' ' -f 1)"
+          CAPS_SIZE="$(stat --format='%s' target/release/caps)"
+          jq -n \
+            --arg version "$RELEASE_TAG" \
+            --arg sha256 "$CAPS_SHA256" \
+            --argjson size "$CAPS_SIZE" \
+            '{schemaVersion: 1, version: $version, assets: [{name: "caps", sha256: $sha256, size: $size}]}' \
+            > target/release/caps-release-manifest.json
+      - name: Stage verified Linux release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: caps-linux-x64
+          path: |
+            target/release/caps
+            target/release/caps-release-manifest.json
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - uses: katyo/publish-crates@v1
         with:
           registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  upload-release:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required only here to attach files to the existing GitHub Release.
+    steps:
+      - name: Download verified Linux release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: caps-linux-x64
+          path: release-assets
+      - name: Upload Linux release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: >
+          gh release upload "$RELEASE_TAG"
+          release-assets/caps
+          release-assets/caps-release-manifest.json
+          --clobber
