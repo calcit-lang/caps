@@ -120,8 +120,13 @@ pub fn main() -> Result<(), String> {
     if let Some(SubCommand::Tree(opts)) = &cli_args.subcommand
         && let Some(workspace) = &opts.workspace
     {
-        workspace_plan::run_workspace_plan(workspace, &opts.format)?;
+        workspace_plan::run_workspace_plan(workspace, opts.format.as_deref().unwrap_or("cirru"))?;
         return Ok(());
+    }
+    if let Some(SubCommand::Tree(opts)) = &cli_args.subcommand
+        && opts.format.is_some()
+    {
+        return Err("tree --format requires --workspace".to_owned());
     }
     let global_modules_dir = modules_dir(&cli_args)?;
     write_modules_agents(&global_modules_dir)?;
@@ -700,8 +705,8 @@ struct TreeCaps {
     workspace: Option<String>,
 
     /// workspace output format: cirru (default) or json
-    #[argh(option, default = "\"cirru\".to_owned()")]
-    format: String,
+    #[argh(option)]
+    format: Option<String>,
 }
 
 #[derive(FromArgs, PartialEq, Debug, Clone)]

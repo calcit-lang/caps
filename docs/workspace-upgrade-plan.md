@@ -36,7 +36,7 @@ Inventory 使用 Cirru EDN。路径相对于 inventory 文件本身解析：
 
 - `:deps-file`：相对于项目目录的依赖文件，默认 `deps.cirru`；
 - `:current-ref`：本地 checkout 的已验证 ref；缺省时输出 `deps.cirru :version`；
-- `:latest-release`：外部流程事先确认的最新 release；缺省会报告 `missing-release`；
+- `:latest-release`：外部流程事先确认的最新 SemVer release（兼容 `v` 前缀）；缺省会报告 `missing-release`；
 - `:state`：`:active`、`:archived` 或 `:excluded`；
 - `:protected`：标记外部自动化不应直接修改的项目；
 - `:source-migration`：已确认需要源码迁移；

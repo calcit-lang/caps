@@ -136,7 +136,7 @@ fn workspace_tree_plans_stable_layers_without_mutation() {
         ),
         (
             "released-consumer",
-            "{} (:version |3.0.0) (:calcit-version |0.15.8) (:dependencies $ {} (|org/base |1.0.0))\n",
+            "{} (:version |3.0.0) (:calcit-version |0.15.8) (:dependencies $ {} (|org/base |v1.0.0))\n",
         ),
         (
             "app",
@@ -174,7 +174,7 @@ fn workspace_tree_plans_stable_layers_without_mutation() {
   :schema-version |1
   :target-calcit |0.15.8
   :projects $ []
-    {} (:repository |org/base) (:path |base) (:latest-release |1.1.0)
+    {} (:repository |org/base) (:path |base) (:latest-release |v1.1.0)
     {} (:repository |org/middle) (:path |middle) (:latest-release |2.0.0)
     {} (:repository |org/released-consumer) (:path |released-consumer) (:latest-release |3.0.0)
     {} (:repository |org/app) (:path |app) (:latest-release |4.0.0) (:protected true)
@@ -297,6 +297,20 @@ fn workspace_tree_rejects_invalid_inventory_without_touching_cache() {
         String::from_utf8(output.stderr)
             .expect("UTF-8 inventory error")
             .contains("unsupported workspace inventory :schema-version 2")
+    );
+    assert!(!modules_dir.exists());
+}
+
+#[test]
+fn tree_format_requires_workspace_mode() {
+    let test_dir = TestDir::new("tree-format-scope");
+    let modules_dir = test_dir.path().join("must-not-be-created");
+    let output = run_caps(&["tree", "--format", "json"], &modules_dir);
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .expect("UTF-8 option error")
+            .contains("tree --format requires --workspace")
     );
     assert!(!modules_dir.exists());
 }

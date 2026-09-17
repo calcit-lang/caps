@@ -135,7 +135,7 @@ fn read_inventory(path: &Path) -> Result<WorkspaceInventory, String> {
         validate_repository(&repository)?;
         let latest_release = optional_string(&map, "latest-release", &repository)?;
         if let Some(release) = &latest_release {
-            Version::parse(release).map_err(|e| {
+            parse_release_version(release).map_err(|e| {
                 format!("workspace project {repository} :latest-release must be exact SemVer: {e}")
             })?;
         }
@@ -230,7 +230,7 @@ fn build_plan(inventory: &WorkspaceInventory, projects: &BTreeMap<String, Loaded
     let mut required_by_branch = BTreeSet::new();
     for project in projects.values() {
         for (dependency, reference) in &project.dependencies {
-            if active.contains(dependency) && Version::parse(reference).is_err() {
+            if active.contains(dependency) && parse_release_version(reference).is_err() {
                 required_by_branch.insert(dependency.clone());
             }
         }
@@ -308,8 +308,8 @@ fn release_state(project: &LoadedProject, required_by_branch: bool) -> &'static 
     let Some(latest) = &project.spec.latest_release else {
         return "missing-release";
     };
-    match (&project.package_version, Version::parse(latest)) {
-        (Some(current), Ok(latest)) => match Version::parse(current) {
+    match (&project.package_version, parse_release_version(latest)) {
+        (Some(current), Ok(latest)) => match parse_release_version(current) {
             Ok(current) if current > latest => "release-required",
             _ => "released",
         },
@@ -363,7 +363,7 @@ fn blockers_for(
             Some("excluded")
         } else if cycle_affected.contains(dependency) {
             Some("dependency-cycle")
-        } else if Version::parse(reference).is_err() {
+        } else if parse_release_version(reference).is_err() {
             Some("unpublished-ref")
         } else if target.spec.latest_release.is_none() {
             Some("missing-release")
@@ -385,10 +385,17 @@ fn blockers_for(
 }
 
 fn is_older_release(reference: &str, latest: &str) -> bool {
-    match (Version::parse(reference), Version::parse(latest)) {
+    match (
+        parse_release_version(reference),
+        parse_release_version(latest),
+    ) {
         (Ok(reference), Ok(latest)) => reference < latest,
         _ => false,
     }
+}
+
+fn parse_release_version(reference: &str) -> Result<Version, semver::Error> {
+    Version::parse(reference.strip_prefix('v').unwrap_or(reference))
 }
 
 fn find_cycles(edges: &BTreeMap<String, BTreeSet<String>>) -> Vec<Vec<String>> {
