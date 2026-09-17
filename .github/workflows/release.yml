@@ -19,6 +19,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --all-targets
+      - run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - run: cargo package
       - name: Build Linux release binary
         run: cargo build --release --locked

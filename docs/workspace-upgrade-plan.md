@@ -73,3 +73,41 @@ caps tree --workspace workspace.cirru --format json
 cycle、缺少 release 证据也会成为明确 blocker。
 
 这个计划只描述顺序和证据，不执行 fetch、建 PR、合并或发版。
+
+## 本地与远端证据
+
+每个项目包含独立的 `:local` evidence：当前 checkout 的 commit、branch、dirty state、
+Calcit 声明版本和 package 版本。Git 查询只读取本地状态；目录不是 Git checkout 或 Git
+不可用时，`:available` 为 `false`，不会导致离线 DAG 失效。
+
+远端状态通过显式文件合并，planner 本身不会访问网络：
+
+```bash
+caps tree \
+  --workspace workspace.cirru \
+  --remote-evidence remote-evidence.cirru
+```
+
+remote evidence 使用 schema `|1`，必须包含 UTC `:observed-at`，并按 repository 提供
+default branch/commit、远端 Calcit 版本、latest release 和可选 PR 状态。默认使用 Cirru
+EDN；为只接受 JSON 的外部流程也可传入 JSON 文件。
+
+仓库附带的可选只读 adapter 可生成该文件：
+
+```bash
+scripts/github_workspace_evidence.py \
+  --workspace workspace.cirru \
+  --output remote-evidence.cirru
+```
+
+adapter 调用本机已认证的 `gh api`，但不会调用任何写 API。可用 `--repository owner/repo`
+缩小范围，或使用 `--format json` 显式输出 JSON。它只把 `deps.cirru` 已声明目标版本的开放
+PR 视为 matching PR，避免仅凭标题误关联。
+
+`:actionable-state` 的安全优先级为：本地 `archived` / `excluded` / `protected`，dirty
+checkout，远端 archived；若远端 main 已完成目标版本，则优先报告本地 commit 落后的
+`fetch-needed`，避免旧 PR 产生重复动作。否则再依次报告 PR conflict、failed checks、
+pending/changes-requested review、已有可合并 PR，最后才是 `current` 或
+`upgrade-needed`。因此远端证据不会覆盖需要人工保护的本地状态。
+
+整个流程不会 fetch、reset 或写 checkout，不创建或更新 PR，也不执行合并和发版。

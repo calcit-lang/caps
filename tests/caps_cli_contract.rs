@@ -1,3 +1,4 @@
+use cirru_edn::Edn;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -41,6 +42,44 @@ fn run_caps(args: &[&str], modules_dir: &Path) -> Output {
         .env("CALCIT_MODULES_DIR", modules_dir)
         .output()
         .expect("run caps")
+}
+
+fn run_git(repo: &Path, args: &[&str]) -> Output {
+    Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()
+        .expect("run git fixture command")
+}
+
+fn initialize_git_fixture(repo: &Path) {
+    let init = run_git(repo, &["init", "-b", "main"]);
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+    assert!(
+        run_git(repo, &["config", "user.name", "Caps Tests"])
+            .status
+            .success()
+    );
+    assert!(
+        run_git(
+            repo,
+            &["config", "user.email", "caps-tests@example.invalid"]
+        )
+        .status
+        .success()
+    );
+    assert!(run_git(repo, &["add", "deps.cirru"]).status.success());
+    let commit = run_git(repo, &["commit", "-m", "fixture"]);
+    assert!(
+        commit.status.success(),
+        "{}",
+        String::from_utf8_lossy(&commit.stderr)
+    );
 }
 
 fn snapshot_files(paths: &[PathBuf]) -> Vec<(PathBuf, Vec<u8>)> {
@@ -215,6 +254,11 @@ fn workspace_tree_plans_stable_layers_without_mutation() {
 "#,
     )
     .expect("write workspace inventory");
+    let blocked_consumer_path = test_dir.path().join("blocked-consumer");
+    initialize_git_fixture(&blocked_consumer_path);
+    input_paths.push(blocked_consumer_path.join(".git/index"));
+    fs::write(blocked_consumer_path.join("local.txt"), "dirty\n")
+        .expect("create dirty fixture state");
     input_paths.push(workspace.clone());
     let modules_dir = test_dir.path().join("must-not-be-created");
     let json_inputs = snapshot_files(&input_paths);
@@ -264,6 +308,7 @@ fn workspace_tree_plans_stable_layers_without_mutation() {
         .find(|project| project["repository"] == "org/app")
         .expect("app project");
     assert_eq!(app["protected"], true);
+    assert_eq!(app["actionable-state"], "protected");
     assert_eq!(
         app["blocked-by"],
         serde_json::json!([{"repository": "org/middle", "reason": "unpublished-ref"}])
@@ -279,26 +324,109 @@ fn workspace_tree_plans_stable_layers_without_mutation() {
             {"repository": "org/excluded", "reason": "excluded"}
         ])
     );
+    assert_eq!(blocked_consumer["actionable-state"], "dirty");
+    assert_eq!(blocked_consumer["local"]["available"], true);
+    assert_eq!(blocked_consumer["local"]["branch"], "main");
+    assert_eq!(blocked_consumer["local"]["dirty"], true);
     assert!(
         !modules_dir.exists(),
         "workspace planning must stay read-only"
     );
     assert_files_unchanged(&json_inputs);
 
+    let remote_evidence = test_dir.path().join("remote-evidence.cirru");
+    fs::write(
+        &remote_evidence,
+        r#"{}
+  :schema-version |1
+  :observed-at |2026-09-17T14:30:00Z
+  :projects $ []
+    {}
+      :repository |org/base
+      :archived false
+      :default-branch |main
+      :default-branch-commit |1111111111111111111111111111111111111111
+      :calcit-version |0.15.8
+      :latest-release |v1.1.0
+    {}
+      :repository |org/middle
+      :archived false
+      :default-branch |main
+      :default-branch-commit |2222222222222222222222222222222222222222
+      :calcit-version |0.15.7
+      :pull-request $ {}
+        :number 12
+        :url |https://github.com/org/middle/pull/12
+        :head-commit |aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        :merge-state |clean
+        :checks-state |passing
+        :review-state |approved
+    {}
+      :repository |org/released-consumer
+      :pull-request $ {}
+        :number 13
+        :url |https://github.com/org/released-consumer/pull/13
+        :head-commit |bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        :merge-state |clean
+        :checks-state |passing
+        :review-state |pending
+    {}
+      :repository |org/source
+      :pull-request $ {}
+        :number 14
+        :url |https://github.com/org/source/pull/14
+        :head-commit |cccccccccccccccccccccccccccccccccccccccc
+        :merge-state |conflicted
+        :checks-state |unknown
+        :review-state |unknown
+    {}
+      :repository |org/tool
+      :pull-request $ {}
+        :number 15
+        :url |https://github.com/org/tool/pull/15
+        :head-commit |dddddddddddddddddddddddddddddddddddddddd
+        :merge-state |clean
+        :checks-state |failing
+        :review-state |approved
+    {}
+      :repository |org/app
+      :pull-request $ {}
+        :number 16
+        :url |https://github.com/org/app/pull/16
+        :head-commit |eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+        :merge-state |clean
+        :checks-state |passing
+        :review-state |approved
+"#,
+    )
+    .expect("write remote evidence");
+    input_paths.push(remote_evidence.clone());
     let cirru_inputs = snapshot_files(&input_paths);
     let cirru_output = run_caps(
         &[
             "tree",
             "--workspace",
             workspace.to_str().expect("UTF-8 temporary path"),
+            "--remote-evidence",
+            remote_evidence
+                .to_str()
+                .expect("UTF-8 remote evidence path"),
         ],
         &modules_dir,
     );
-    assert!(cirru_output.status.success());
+    assert!(
+        cirru_output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cirru_output.stderr)
+    );
     let cirru = String::from_utf8(cirru_output.stdout).expect("UTF-8 Cirru EDN plan");
     let parsed = cirru_edn::parse(&cirru).expect("parse default Cirru EDN output");
     let plan = parsed.view_map().expect("plan map");
     assert_eq!(plan.get_or_nil("schema-version"), cirru_edn::Edn::str("1"));
+    assert_eq!(
+        plan.get_or_nil("remote-evidence-observed-at"),
+        cirru_edn::Edn::str("2026-09-17T14:30:00Z")
+    );
     assert_eq!(
         plan.get_or_nil("layers"),
         cirru_edn::parse(
@@ -329,6 +457,40 @@ fn workspace_tree_plans_stable_layers_without_mutation() {
         cirru_edn::parse("[] $ {} (:reason |unpublished-ref) (:repository |org/middle)")
             .expect("expected Cirru blocker")
     );
+    let project_states = plan
+        .get_or_nil("projects")
+        .view_list()
+        .expect("Cirru project list")
+        .0
+        .into_iter()
+        .map(|project| {
+            let project = project.view_map().expect("Cirru project map");
+            let Edn::Str(repository) = project.get_or_nil("repository") else {
+                panic!("Cirru project repository must be a string")
+            };
+            let Edn::Str(state) = project.get_or_nil("actionable-state") else {
+                panic!("Cirru project actionable-state must be a string")
+            };
+            (repository.to_string(), state.to_string())
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for (repository, state) in [
+        ("org/base", "fetch-needed"),
+        ("org/middle", "pr-exists"),
+        ("org/released-consumer", "review-required"),
+        ("org/source", "conflicted"),
+        ("org/tool", "checks-failed"),
+        ("org/app", "protected"),
+        ("org/archived", "archived"),
+        ("org/excluded", "excluded"),
+        ("org/blocked-consumer", "dirty"),
+    ] {
+        assert_eq!(
+            project_states.get(repository).map(String::as_str),
+            Some(state),
+            "unexpected state for {repository}"
+        );
+    }
     assert!(!modules_dir.exists(), "Cirru planning must stay read-only");
     assert_files_unchanged(&cirru_inputs);
 }
@@ -361,6 +523,117 @@ fn workspace_tree_rejects_invalid_inventory_without_touching_cache() {
 }
 
 #[test]
+fn workspace_tree_accepts_json_remote_evidence_and_rejects_unknown_states() {
+    let test_dir = TestDir::new("workspace-remote-json");
+    let project_dir = test_dir.path().join("project");
+    fs::create_dir_all(&project_dir).expect("create fixture project");
+    let deps_file = project_dir.join("deps.cirru");
+    fs::write(
+        &deps_file,
+        "{} (:version |1.0.0) (:calcit-version |0.15.7) (:dependencies $ {})\n",
+    )
+    .expect("write fixture deps.cirru");
+    let workspace = test_dir.path().join("workspace.cirru");
+    fs::write(
+        &workspace,
+        "{} (:schema-version |1) (:target-calcit |0.15.8) (:projects $ [] ({} (:repository |org/project) (:path |project) (:latest-release |1.0.0)))\n",
+    )
+    .expect("write workspace inventory");
+    let evidence = test_dir.path().join("remote-evidence.json");
+    fs::write(
+        &evidence,
+        r#"{
+  "schema-version": "1",
+  "observed-at": "2026-09-17T15:00:00Z",
+  "projects": [{
+    "repository": "org/project",
+    "default-branch": "main",
+    "default-branch-commit": "1111111111111111111111111111111111111111",
+    "calcit-version": "0.15.8",
+    "pull-request": {
+      "number": 1,
+      "url": "https://github.com/org/project/pull/1",
+      "head-commit": "2222222222222222222222222222222222222222",
+      "merge-state": "conflicted",
+      "checks-state": "failing",
+      "review-state": "changes-requested"
+    }
+  }]
+}
+"#,
+    )
+    .expect("write JSON remote evidence");
+    let modules_dir = test_dir.path().join("must-not-be-created");
+    let inputs = snapshot_files(&[workspace.clone(), deps_file.clone(), evidence.clone()]);
+    let output = run_caps(
+        &[
+            "tree",
+            "--workspace",
+            workspace.to_str().expect("UTF-8 workspace path"),
+            "--remote-evidence",
+            evidence.to_str().expect("UTF-8 evidence path"),
+            "--format",
+            "json",
+        ],
+        &modules_dir,
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON plan");
+    assert_eq!(plan["remote-evidence-observed-at"], "2026-09-17T15:00:00Z");
+    assert_eq!(plan["projects"][0]["actionable-state"], "fetch-needed");
+    assert_files_unchanged(&inputs);
+    assert!(!modules_dir.exists());
+
+    fs::write(
+        &evidence,
+        r#"{
+  "schema-version": "1",
+  "observed-at": "2026-09-17T15:00:00Z",
+  "projects": [{
+    "repository": "org/project",
+    "pull-request": {
+      "number": 1,
+      "url": "https://github.com/org/project/pull/1",
+      "head-commit": "2222222222222222222222222222222222222222",
+      "merge-state": "surprise",
+      "checks-state": "passing",
+      "review-state": "approved"
+    }
+  }]
+}
+"#,
+    )
+    .expect("write malformed JSON remote evidence");
+    let malformed_inputs = snapshot_files(&[workspace, deps_file, evidence.clone()]);
+    let output = run_caps(
+        &[
+            "tree",
+            "--workspace",
+            test_dir
+                .path()
+                .join("workspace.cirru")
+                .to_str()
+                .expect("UTF-8 workspace path"),
+            "--remote-evidence",
+            evidence.to_str().expect("UTF-8 evidence path"),
+        ],
+        &modules_dir,
+    );
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8(output.stderr)
+            .expect("UTF-8 remote evidence error")
+            .contains(":merge-state has unsupported value surprise")
+    );
+    assert_files_unchanged(&malformed_inputs);
+    assert!(!modules_dir.exists());
+}
+
+#[test]
 fn tree_format_requires_workspace_mode() {
     let test_dir = TestDir::new("tree-format-scope");
     let modules_dir = test_dir.path().join("must-not-be-created");
@@ -369,7 +642,7 @@ fn tree_format_requires_workspace_mode() {
     assert!(
         String::from_utf8(output.stderr)
             .expect("UTF-8 option error")
-            .contains("tree --format requires --workspace")
+            .contains("tree --format and --remote-evidence require --workspace")
     );
     assert!(!modules_dir.exists());
 }
