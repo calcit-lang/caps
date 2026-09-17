@@ -23,6 +23,8 @@ cargo install calcit-caps
 caps
 caps tree
 caps tree --workspace workspace.cirru
+scripts/github_workspace_evidence.py --workspace workspace.cirru --output remote-evidence.cirru
+caps tree --workspace workspace.cirru --remote-evidence remote-evidence.cirru
 caps why calcit-lang/calcit.std
 caps status
 caps verify --toolchain

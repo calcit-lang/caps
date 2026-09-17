@@ -120,13 +120,17 @@ pub fn main() -> Result<(), String> {
     if let Some(SubCommand::Tree(opts)) = &cli_args.subcommand
         && let Some(workspace) = &opts.workspace
     {
-        workspace_plan::run_workspace_plan(workspace, opts.format.as_deref().unwrap_or("cirru"))?;
+        workspace_plan::run_workspace_plan(
+            workspace,
+            opts.remote_evidence.as_deref(),
+            opts.format.as_deref().unwrap_or("cirru"),
+        )?;
         return Ok(());
     }
     if let Some(SubCommand::Tree(opts)) = &cli_args.subcommand
-        && opts.format.is_some()
+        && (opts.format.is_some() || opts.remote_evidence.is_some())
     {
-        return Err("tree --format requires --workspace".to_owned());
+        return Err("tree --format and --remote-evidence require --workspace".to_owned());
     }
     let global_modules_dir = modules_dir(&cli_args)?;
     write_modules_agents(&global_modules_dir)?;
@@ -703,6 +707,10 @@ struct TreeCaps {
     /// cirru EDN workspace inventory to plan instead of resolving one project
     #[argh(option)]
     workspace: Option<String>,
+
+    /// timestamped Cirru EDN or JSON remote evidence to reconcile
+    #[argh(option)]
+    remote_evidence: Option<String>,
 
     /// workspace output format: cirru (default) or json
     #[argh(option)]
