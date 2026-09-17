@@ -6,6 +6,7 @@
 
 mod caps_graph;
 mod git;
+mod workspace_plan;
 
 use argh::{self, FromArgs};
 
@@ -115,6 +116,17 @@ pub fn main() -> Result<(), String> {
     if cli_args.version {
         println!("caps {CAPS_VERSION}");
         return Ok(());
+    }
+    if let Some(SubCommand::Tree(opts)) = &cli_args.subcommand
+        && let Some(workspace) = &opts.workspace
+    {
+        workspace_plan::run_workspace_plan(workspace, opts.format.as_deref().unwrap_or("cirru"))?;
+        return Ok(());
+    }
+    if let Some(SubCommand::Tree(opts)) = &cli_args.subcommand
+        && opts.format.is_some()
+    {
+        return Err("tree --format requires --workspace".to_owned());
     }
     let global_modules_dir = modules_dir(&cli_args)?;
     write_modules_agents(&global_modules_dir)?;
@@ -687,7 +699,15 @@ struct CleanCaps {}
 #[derive(FromArgs, PartialEq, Debug, Clone)]
 /// show the resolved recursive dependency graph
 #[argh(subcommand, name = "tree")]
-struct TreeCaps {}
+struct TreeCaps {
+    /// cirru EDN workspace inventory to plan instead of resolving one project
+    #[argh(option)]
+    workspace: Option<String>,
+
+    /// workspace output format: cirru (default) or json
+    #[argh(option)]
+    format: Option<String>,
+}
 
 #[derive(FromArgs, PartialEq, Debug, Clone)]
 /// explain why a module is present in the resolved graph

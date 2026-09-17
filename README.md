@@ -22,11 +22,15 @@ verified a toolchain that is not discoverable through `PATH`.
 cargo install calcit-caps
 caps
 caps tree
+caps tree --workspace workspace.cirru
 caps why calcit-lang/calcit.std
 caps status
 caps verify --toolchain
 caps upgrade --all
 ```
+
+多仓库升级可复用现有 `tree` 命令生成离线、只读的依赖顺序计划。默认输出 Cirru EDN；
+inventory schema、分类和 blocker 语义见 [Workspace 升级计划](docs/workspace-upgrade-plan.md)。
 
 The default manifest is `deps.cirru` in the current directory. Every command also
 accepts an explicit manifest path as the positional input.
