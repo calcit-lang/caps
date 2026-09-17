@@ -38,14 +38,14 @@ class GitHubWorkspaceEvidenceTests(unittest.TestCase):
                     "mergeable": True,
                     "mergeable_state": "clean",
                 },
-                f"repos/contributor/app/commits/{'2' * 40}/check-runs": {
+                f"repos/contributor/app/commits/{'2' * 40}/check-runs?per_page=100": {
                     "check_runs": [{"status": "completed", "conclusion": "success"}]
                 },
                 f"repos/contributor/app/commits/{'2' * 40}/status": {
                     "state": "success",
                     "statuses": [],
                 },
-                "repos/org/app/pulls/7/reviews": [
+                "repos/org/app/pulls/7/reviews?per_page=100": [
                     {"submitted_at": "2026-09-17T12:00:00Z", "state": "APPROVED", "user": {"login": "reviewer"}}
                 ],
             }
@@ -73,11 +73,11 @@ class GitHubWorkspaceEvidenceTests(unittest.TestCase):
         commit = "3" * 40
 
         def api(endpoint, *, allow_not_found=False):
-            if endpoint.endswith("/check-runs"):
+            if "/check-runs?" in endpoint:
                 return {"check_runs": [{"status": "completed", "conclusion": "failure"}]}
             if endpoint.endswith("/status"):
                 return {"state": "success", "statuses": []}
-            if endpoint.endswith("/reviews"):
+            if "/reviews?" in endpoint:
                 return [
                     {"submitted_at": "2026-09-17T12:00:00Z", "state": "APPROVED", "user": {"login": "a"}},
                     {"submitted_at": "2026-09-17T13:00:00Z", "state": "CHANGES_REQUESTED", "user": {"login": "b"}},

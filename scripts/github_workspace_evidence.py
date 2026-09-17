@@ -97,7 +97,9 @@ def declared_calcit_version(content: str | None) -> str | None:
 
 
 def checks_state(api: Callable[..., Any], repository: str, commit: str) -> str:
-    check_runs = api(f"repos/{repository}/commits/{commit}/check-runs").get("check_runs", [])
+    check_runs = api(f"repos/{repository}/commits/{commit}/check-runs?per_page=100").get(
+        "check_runs", []
+    )
     combined = api(f"repos/{repository}/commits/{commit}/status")
     conclusions = [run.get("conclusion") for run in check_runs]
     if combined.get("state") == "failure" or any(
@@ -114,7 +116,7 @@ def checks_state(api: Callable[..., Any], repository: str, commit: str) -> str:
 
 
 def review_state(api: Callable[..., Any], repository: str, number: int) -> str:
-    reviews = api(f"repos/{repository}/pulls/{number}/reviews")
+    reviews = api(f"repos/{repository}/pulls/{number}/reviews?per_page=100")
     latest: dict[str, str] = {}
     for review in sorted(reviews, key=lambda item: item.get("submitted_at") or ""):
         user = review.get("user") or {}
