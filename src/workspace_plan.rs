@@ -1,4 +1,4 @@
-use crate::PackageDeps;
+use crate::{PackageDeps, validated_module_parts};
 use cirru_edn::{Edn, EdnListView, EdnMapView};
 use semver::Version;
 use serde_json::{Map, Value, json};
@@ -132,7 +132,8 @@ fn read_inventory(path: &Path) -> Result<WorkspaceInventory, String> {
             .view_map()
             .map_err(|e| format!("workspace project must be a map: {e}"))?;
         let repository = required_string(&map, "repository", "workspace project")?;
-        validate_repository(&repository)?;
+        validated_module_parts(&repository)
+            .map_err(|error| format!("invalid workspace :repository {repository}: {error}"))?;
         let latest_release = optional_string(&map, "latest-release", &repository)?;
         if let Some(release) = &latest_release {
             parse_release_version(release).map_err(|e| {
@@ -186,11 +187,27 @@ fn load_projects(
         let deps: PackageDeps = parsed
             .try_into()
             .map_err(|e| format!("invalid {} for {repository}: {e}", deps_path.display()))?;
+        validate_project_version(repository, &deps_path, "version", deps.version.as_deref())?;
+        validate_project_version(
+            repository,
+            &deps_path,
+            "calcit-version",
+            deps.calcit_version.as_deref(),
+        )?;
         let dependencies = deps
             .root_dependencies()?
             .into_iter()
-            .map(|(name, reference)| (name.to_string(), reference.to_string()))
-            .collect();
+            .map(|(name, reference)| {
+                let name = name.to_string();
+                validated_module_parts(&name).map_err(|error| {
+                    format!(
+                        "invalid dependency {name} in {} for {repository}: {error}",
+                        deps_path.display()
+                    )
+                })?;
+                Ok((name, reference.to_string()))
+            })
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
         loaded.insert(
             repository.clone(),
             LoadedProject {
@@ -228,7 +245,10 @@ fn build_plan(inventory: &WorkspaceInventory, projects: &BTreeMap<String, Loaded
     let layers = topological_layers(&edges, &cycle_affected);
 
     let mut required_by_branch = BTreeSet::new();
-    for project in projects.values() {
+    for project in projects
+        .values()
+        .filter(|project| project.spec.state == ProjectState::Active)
+    {
         for (dependency, reference) in &project.dependencies {
             if active.contains(dependency) && parse_release_version(reference).is_err() {
                 required_by_branch.insert(dependency.clone());
@@ -538,16 +558,19 @@ fn optional_bool(map: &EdnMapView, key: &str, context: &str) -> Result<Option<bo
     }
 }
 
-fn validate_repository(repository: &str) -> Result<(), String> {
-    let Some((owner, name)) = repository.split_once('/') else {
-        return Err(format!(
-            "workspace :repository must use owner/repo form: {repository}"
-        ));
-    };
-    if owner.is_empty() || name.is_empty() || name.contains('/') {
-        return Err(format!(
-            "workspace :repository must use owner/repo form: {repository}"
-        ));
+fn validate_project_version(
+    repository: &str,
+    deps_path: &Path,
+    field: &str,
+    value: Option<&str>,
+) -> Result<(), String> {
+    if let Some(value) = value {
+        Version::parse(value).map_err(|error| {
+            format!(
+                "invalid :{field} for {repository} in {}: {value} is not exact SemVer ({error})",
+                deps_path.display()
+            )
+        })?;
     }
     Ok(())
 }
