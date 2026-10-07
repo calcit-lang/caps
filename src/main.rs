@@ -185,8 +185,9 @@ pub fn main() -> Result<(), String> {
 
         if deps.version.is_none() {
             eprintln!(
-                "[Warn] {} has no usable :version (it is missing or empty); initialize the project version with `caps version set <version> {}`",
-                cli_args.input, cli_args.input
+                "[Warn] {} has no usable :version (it is missing or empty); initialize the project version with `{}`",
+                cli_args.input,
+                version_init_hint(&cli_args.input)
             );
         }
 
@@ -1268,6 +1269,35 @@ fn sync_calcit_procs_package(project_root: &Path, calcit_version: &str) -> Resul
     }
 }
 
+/// Builds the copyable command that initializes `:version` in `deps_file`.
+///
+/// The deps file is a top-level positional argument, so it must precede the
+/// `version set` subcommand; placing it after `<version>` is rejected by the
+/// parser. Paths that a POSIX shell would split or expand are single-quoted, and
+/// relative paths starting with `-` get a `./` prefix so they are not parsed as
+/// flags.
+fn version_init_hint(deps_file: &str) -> String {
+    format!("caps {} version set <version>", shell_quote_path(deps_file))
+}
+
+fn shell_quote_path(path: &str) -> String {
+    let path = if path.starts_with('-') {
+        format!("./{path}")
+    } else {
+        path.to_owned()
+    };
+    let is_plain = !path.is_empty()
+        && path.chars().all(|c| {
+            c.is_ascii_alphanumeric()
+                || matches!(c, '/' | '.' | '_' | '-' | '+' | ',' | ':' | '@' | '%')
+        });
+    if is_plain {
+        path
+    } else {
+        format!("'{}'", path.replace('\'', "'\\''"))
+    }
+}
+
 fn handle_version_command(
     mut deps: PackageDeps,
     deps_file: &str,
@@ -1275,10 +1305,12 @@ fn handle_version_command(
 ) -> Result<(), String> {
     match &opts.command {
         VersionSubcommand::Get(_) => {
-            let version = deps
-        .version
-        .as_deref()
-        .ok_or_else(|| format!("no :version declared in {deps_file}; initialize it with `caps version set <version> {deps_file}`"))?;
+            let version = deps.version.as_deref().ok_or_else(|| {
+                format!(
+                    "no :version declared in {deps_file}; initialize it with `{}`",
+                    version_init_hint(deps_file)
+                )
+            })?;
             println!("{version}");
         }
         VersionSubcommand::Set(opts) => {
@@ -1289,10 +1321,12 @@ fn handle_version_command(
             println!("updated {deps_file} to {}", opts.version);
         }
         VersionSubcommand::Bump(opts) => {
-            let current = deps
-        .version
-        .as_deref()
-        .ok_or_else(|| format!("no :version declared in {deps_file}; initialize it with `caps version set <version> {deps_file}`"))?;
+            let current = deps.version.as_deref().ok_or_else(|| {
+                format!(
+                    "no :version declared in {deps_file}; initialize it with `{}`",
+                    version_init_hint(deps_file)
+                )
+            })?;
             let mut version = Version::parse(current)
                 .map_err(|e| format!("invalid existing SemVer version '{current}': {e}"))?;
             match opts.level.as_str() {
@@ -1345,11 +1379,13 @@ fn print_column(
 #[cfg(test)]
 mod tests {
     use super::{
-        PackageDeps, TopLevelCaps, VersionBumpCaps, VersionCaps, VersionGetCaps, VersionSubcommand,
-        handle_version_command, install_graph_options, module_folder, normalize_package_name,
-        parse_calcit_version_output, project_root_from_input, verify_installed_procs_version,
-        verify_procs_manifest_spec,
+        PackageDeps, SubCommand, TopLevelCaps, VersionBumpCaps, VersionCaps, VersionGetCaps,
+        VersionSetCaps, VersionSubcommand, handle_version_command, install_graph_options,
+        module_folder, normalize_package_name, parse_calcit_version_output,
+        project_root_from_input, verify_installed_procs_version, verify_procs_manifest_spec,
+        version_init_hint,
     };
+    use argh::FromArgs;
     use cirru_edn::Edn;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -1533,6 +1569,99 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    /// Splits a POSIX shell word list that only uses plain words, single quotes and
+    /// backslash escapes outside quotes,
+    /// which is everything `shell_quote_path` produces.
+    fn split_shell_words(command: &str) -> Vec<String> {
+        let mut words = Vec::new();
+        let mut current = String::new();
+        let mut in_word = false;
+        let mut in_quote = false;
+        let mut chars = command.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' if !in_quote => {
+                    current.push(chars.next().expect("dangling escape"));
+                    in_word = true;
+                }
+                '\'' => {
+                    in_quote = !in_quote;
+                    in_word = true;
+                }
+                ' ' if !in_quote => {
+                    if in_word {
+                        words.push(std::mem::take(&mut current));
+                        in_word = false;
+                    }
+                }
+                _ => {
+                    current.push(c);
+                    in_word = true;
+                }
+            }
+        }
+        assert!(!in_quote, "unterminated quote in {command}");
+        if in_word {
+            words.push(current);
+        }
+        words
+    }
+
+    fn parse_version_init_hint(deps_file: &str) -> TopLevelCaps {
+        let command = version_init_hint(deps_file).replace("<version>", "1.2.3");
+        let words = split_shell_words(&command);
+        assert_eq!(words.first().map(String::as_str), Some("caps"));
+        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+        TopLevelCaps::from_args(&["caps"], &args)
+            .unwrap_or_else(|exit| panic!("hint `{command}` is not parseable: {}", exit.output))
+    }
+
+    #[test]
+    fn version_init_hint_parses_with_the_real_cli_grammar() {
+        for deps_file in [
+            "deps.cirru",
+            "sub/my-deps.cirru",
+            "/abs/path/deps.cirru",
+            "dir with space/deps.cirru",
+            "it's/deps.cirru",
+            "-dash.cirru",
+        ] {
+            let parsed = parse_version_init_hint(deps_file);
+            let expected_input = if deps_file.starts_with('-') {
+                format!("./{deps_file}")
+            } else {
+                deps_file.to_owned()
+            };
+            assert_eq!(parsed.input, expected_input, "hint for {deps_file}");
+            assert_eq!(
+                parsed.subcommand,
+                Some(SubCommand::Version(VersionCaps {
+                    command: VersionSubcommand::Set(VersionSetCaps {
+                        version: "1.2.3".to_owned(),
+                    }),
+                })),
+                "hint for {deps_file}"
+            );
+        }
+        assert_eq!(
+            version_init_hint("deps.cirru"),
+            "caps deps.cirru version set <version>"
+        );
+    }
+
+    #[test]
+    fn old_version_init_hint_order_is_rejected_by_the_cli_grammar() {
+        // Regression guard for calcit-lang/caps#12: the 0.1.1 hint placed the deps
+        // file after `version set <version>`, which the parser rejects.
+        let exit = TopLevelCaps::from_args(&["caps"], &["version", "set", "1.2.3", "deps.cirru"])
+            .expect_err("old hint order must not parse");
+        assert!(
+            exit.output.contains("Unrecognized argument"),
+            "unexpected parser output: {}",
+            exit.output
+        );
+    }
+
     #[test]
     fn version_commands_do_not_read_snapshot_version() {
         let root = std::env::temp_dir().join(format!(
@@ -1568,7 +1697,7 @@ mod tests {
             "unexpected error: {get_error}"
         );
         assert!(
-            get_error.contains(&format!("caps version set <version> {deps_file}")),
+            get_error.contains(&version_init_hint(deps_file)),
             "unexpected migration hint: {get_error}"
         );
 
@@ -1591,7 +1720,7 @@ mod tests {
             "unexpected error: {bump_error}"
         );
         assert!(
-            bump_error.contains(&format!("caps version set <version> {deps_file}")),
+            bump_error.contains(&version_init_hint(deps_file)),
             "unexpected migration hint: {bump_error}"
         );
 

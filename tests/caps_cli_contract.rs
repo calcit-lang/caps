@@ -166,6 +166,79 @@ fn version_get_reads_the_explicit_deps_file_without_mutation() {
     );
 }
 
+/// Collects every backtick-quoted `caps ...` command printed on stderr.
+#[cfg(unix)]
+fn printed_caps_commands(stderr: &str) -> Vec<String> {
+    stderr
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .filter(|command| command.starts_with("caps "))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Runs `caps version get` without `:version`, then executes each printed
+/// initialization hint through a real POSIX shell (calcit-lang/caps#12).
+#[cfg(unix)]
+fn assert_version_init_hints_execute(label: &str, relative_deps: Option<&str>, version: &str) {
+    let test_dir = TestDir::new(label);
+    let modules_dir = test_dir.path().join("modules");
+    let deps_path = test_dir.path().join(relative_deps.unwrap_or("deps.cirru"));
+    fs::create_dir_all(deps_path.parent().expect("deps parent")).expect("create deps dir");
+    fs::write(&deps_path, "{} (:dependencies $ {})\n").expect("write deps file");
+
+    let mut get_args: Vec<&str> = relative_deps.into_iter().collect();
+    get_args.extend(["version", "get"]);
+    let output = Command::new(env!("CARGO_BIN_EXE_caps"))
+        .args(&get_args)
+        .current_dir(test_dir.path())
+        .env("CALCIT_MODULES_DIR", &modules_dir)
+        .output()
+        .expect("run caps version get");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    let hints = printed_caps_commands(&stderr);
+    assert_eq!(hints.len(), 2, "expected warning and error hints: {stderr}");
+
+    for hint in hints {
+        fs::write(&deps_path, "{} (:dependencies $ {})\n").expect("reset deps file");
+        let command = hint.replacen("<version>", version, 1);
+        let script = format!("\"$CAPS_BIN\"{}", command.strip_prefix("caps").unwrap());
+        let run = Command::new("sh")
+            .arg("-c")
+            .arg(&script)
+            .current_dir(test_dir.path())
+            .env("CAPS_BIN", env!("CARGO_BIN_EXE_caps"))
+            .env("CALCIT_MODULES_DIR", &modules_dir)
+            .output()
+            .expect("run printed hint");
+        assert!(
+            run.status.success(),
+            "printed hint `{hint}` failed: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        let updated = fs::read_to_string(&deps_path).expect("read updated deps file");
+        assert!(
+            updated.contains(&format!(":version |{version}")),
+            "hint `{hint}` did not update {}: {updated}",
+            deps_path.display()
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn version_init_hint_executes_for_the_default_deps_file() {
+    assert_version_init_hints_execute("hint-default", None, "0.1.0");
+}
+
+#[cfg(unix)]
+#[test]
+fn version_init_hint_executes_for_a_custom_deps_file() {
+    assert_version_init_hints_execute("hint-custom", Some("sub dir/my-deps.cirru"), "0.2.0");
+}
+
 #[test]
 fn missing_explicit_deps_file_is_a_failure() {
     let test_dir = TestDir::new("missing-input");
