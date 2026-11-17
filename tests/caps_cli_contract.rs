@@ -186,8 +186,12 @@ fn outdated_updates_only_after_explicit_confirmation() {
                     .contains("Downloading updated dependencies")
             );
             assert!(
-                !dir.path().join("modules").exists(),
-                "{label} created a module cache"
+                !dir.path().join("module-caches/git").exists(),
+                "{label} downloaded module revisions"
+            );
+            assert!(
+                !dir.path().join(".calcit/modules").exists(),
+                "{label} created a project module view"
             );
         }
     }
