@@ -1031,7 +1031,7 @@ fn outdated_tags(
             .map_err(|e| e.to_string())?;
         let input = input.trim();
 
-        if input.is_empty() || input.to_lowercase() == "y" || input.to_lowercase() == "yes" {
+        if input.eq_ignore_ascii_case("y") || input.eq_ignore_ascii_case("yes") {
             update_deps_file(
                 &outdated_packages,
                 calcit_version_needs_update,

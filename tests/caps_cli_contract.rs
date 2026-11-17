@@ -1,7 +1,8 @@
 use cirru_edn::Edn;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 struct TestDir(PathBuf);
@@ -134,6 +135,77 @@ fn version_flag_reports_caps_instead_of_calcit() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 version output");
     assert_eq!(stdout, format!("caps {}\n", env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn outdated_updates_only_after_explicit_confirmation() {
+    for (label, input, auto_yes, expected_update) in [
+        ("eof", "", false, false),
+        ("empty", "\n", false, false),
+        ("no", "n\n", false, false),
+        ("yes-short", "y\n", false, true),
+        ("yes-long", "YeS\n", false, true),
+        ("flag", "", true, true),
+    ] {
+        let dir = TestDir::new(label);
+        let deps = dir.path().join("custom.cirru");
+        let original = "{} (:version |1.2.3) (:calcit-version |0.42.1) (:dependencies $ {})\n";
+        fs::write(&deps, original).expect("write dependency fixture");
+        let mut command = Command::new(env!("CARGO_BIN_EXE_caps"));
+        command
+            .current_dir(dir.path())
+            .env("CALCIT_MODULES_DIR", dir.path().join("modules"))
+            .args(["--calcit-version", "0.43.0", "custom.cirru", "outdated"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if auto_yes {
+            command.arg("-y");
+        }
+        let mut child = command.spawn().expect("run caps outdated");
+        let mut stdin = child.stdin.take().expect("piped stdin");
+        stdin.write_all(input.as_bytes()).expect("write response");
+        drop(stdin);
+        let output = child.wait_with_output().expect("wait for caps");
+        assert!(
+            output.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let actual = fs::read_to_string(&deps).expect("read dependency fixture");
+        if expected_update {
+            assert!(
+                actual.contains(":calcit-version |0.43.0"),
+                "{label}: {actual}"
+            );
+            assert!(actual.contains(":version |1.2.3"), "{label}: {actual}");
+        } else {
+            assert_eq!(actual, original, "{label} changed the manifest");
+            assert!(
+                !String::from_utf8_lossy(&output.stdout)
+                    .contains("Downloading updated dependencies")
+            );
+            assert!(
+                !dir.path().join("modules").exists(),
+                "{label} created a module cache"
+            );
+        }
+    }
+
+    let dir = TestDir::new("already-current");
+    let deps = dir.path().join("deps.cirru");
+    let original = "{} (:version |1.2.3) (:calcit-version |0.43.0) (:dependencies $ {})\n";
+    fs::write(&deps, original).expect("write current manifest");
+    let output = Command::new(env!("CARGO_BIN_EXE_caps"))
+        .current_dir(dir.path())
+        .env("CALCIT_MODULES_DIR", dir.path().join("modules"))
+        .args(["--calcit-version", "0.43.0", "outdated"])
+        .stdin(Stdio::null())
+        .output()
+        .expect("run caps outdated");
+    assert!(output.status.success());
+    assert_eq!(fs::read_to_string(deps).unwrap(), original);
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("Update deps.cirru?"));
 }
 
 #[test]
